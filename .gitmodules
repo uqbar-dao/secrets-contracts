@@ -7,3 +7,6 @@
 [submodule "lib/solmate"]
 	path = lib/solmate
 	url = https://github.com/transmissions11/solmate
+[submodule "lib/qns"]
+	path = lib/qns
+	url = https://github.com/uqbar-dao/qns
