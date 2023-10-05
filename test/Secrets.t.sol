@@ -20,16 +20,16 @@ contract QNSTest is TestUtils {
     }
 
     // events
-    event NewSecret(bytes32 indexed messageHash, string uqname);
-    event BidPlaced(bytes32 indexed messageHash, address indexed who, uint256 amount);
-    event SecretRevealed(bytes32 indexed messageHash, address indexed who, bytes uqname, string secret);
-
+    event NewSecret(bytes32 indexed messageHash, string message, bytes uqname);
+    event BidPlaced(bytes32 indexed messageHash, address indexed who, uint256 amount, bytes uqname);
+    event SecretRevealed(bytes32 indexed messageHash, address indexed who, string secret, bytes uqname);
 
     // addresses
     address public deployer = address(2);
     address public alice = address(3);
     address public bob;
     uint256 public bob_key;
+    address public charlie = address(4);
 
     // contracts
     QNSRegistry public qnsRegistry;
@@ -111,7 +111,7 @@ contract QNSTest is TestUtils {
         assertEq(address(secrets.weth()), address(weth));
     }
 
-    function test_all() public {
+    function test_commitWithoutName() public {
         // commitSecret tests
         string memory message = "a message";
         string memory secret = "a secret";
@@ -121,10 +121,10 @@ contract QNSTest is TestUtils {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(bob_key, commitHash);
         bytes memory signature = abi.encodePacked(r, s, v);
         
-        vm.prank(bob);
+        vm.prank(charlie);
         vm.expectEmit(true, false, false, true);
-        emit NewSecret(messageHash, message);
-        secrets.commitSecret(message, signature);
+        emit NewSecret(messageHash, message, "");
+        secrets.commitSecret(message, signature, "");
 
         (uint256 amount, address bidder, bytes memory actualSig) = secrets.bids(messageHash);
         assertEq(amount, 0);
@@ -137,8 +137,8 @@ contract QNSTest is TestUtils {
 
         vm.prank(alice);
         vm.expectEmit(true, true, false, true);
-        emit BidPlaced(messageHash, alice, 5 ether);
-        secrets.placeBid(5 ether, messageHash, getDNSWire("alices-node.uq"));
+        emit BidPlaced(messageHash, alice, 5 ether, getDNSWire("alices-node.uq"));
+        secrets.placeBid(messageHash, 5 ether, getDNSWire("alices-node.uq"));
     
         (uint256 amount2, address bidder2, bytes memory actualSig2) = secrets.bids(messageHash);
         assertEq(amount2, 5 ether);
@@ -150,7 +150,54 @@ contract QNSTest is TestUtils {
         uint256 beforeAlice = weth.balanceOf(alice);
         uint256 beforeBob = weth.balanceOf(bob);
         vm.expectEmit(true, true, false, true);
-        emit SecretRevealed(messageHash, bob, getDNSWire("bobs-node.uq"), secret);
+        emit SecretRevealed(messageHash, bob, secret, getDNSWire("bobs-node.uq"));
+        secrets.revealSecret(message, secret, getDNSWire("bobs-node.uq"));
+        uint256 afterAlice = weth.balanceOf(alice);
+        uint256 afterBob = weth.balanceOf(bob);
+        assertEq(beforeBob + 5 ether, afterBob);
+        assertEq(beforeAlice - 5 ether, afterAlice);
+    }
+
+    function test_commitWithName() public {
+        // commitSecret tests
+        string memory message = "a message";
+        string memory secret = "a secret";
+        bytes32 messageHash = keccak256(abi.encodePacked(message));
+        bytes32 commitHash = keccak256(abi.encodePacked(message, secret));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(bob_key, commitHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        
+        vm.prank(bob);
+        vm.expectEmit(true, false, false, true);
+        emit NewSecret(messageHash, message, getDNSWire("bobs-node.uq"));
+        secrets.commitSecret(message, signature, getDNSWire("bobs-node.uq"));
+
+        (uint256 amount, address bidder, bytes memory actualSig) = secrets.bids(messageHash);
+        assertEq(amount, 0);
+        assertEq(bidder, address(0));
+        assertEq(actualSig, signature);
+
+        /// placeBid tests
+        vm.prank(alice);
+        weth.approve(address(secrets), 100 ether);
+
+        vm.prank(alice);
+        vm.expectEmit(true, true, false, true);
+        emit BidPlaced(messageHash, alice, 5 ether, getDNSWire("alices-node.uq"));
+        secrets.placeBid(messageHash, 5 ether, getDNSWire("alices-node.uq"));
+    
+        (uint256 amount2, address bidder2, bytes memory actualSig2) = secrets.bids(messageHash);
+        assertEq(amount2, 5 ether);
+        assertEq(bidder2, alice);
+        assertEq(actualSig2, signature);
+
+        // revealSecret tests
+        vm.prank(bob);
+        uint256 beforeAlice = weth.balanceOf(alice);
+        uint256 beforeBob = weth.balanceOf(bob);
+        vm.expectEmit(true, true, false, true);
+        emit SecretRevealed(messageHash, bob, secret, getDNSWire("bobs-node.uq"));
         secrets.revealSecret(message, secret, getDNSWire("bobs-node.uq"));
         uint256 afterAlice = weth.balanceOf(alice);
         uint256 afterBob = weth.balanceOf(bob);

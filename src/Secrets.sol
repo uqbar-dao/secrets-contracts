@@ -17,9 +17,9 @@ contract Secrets {
         // TODO bool revealed;
     }
 
-    event NewSecret(bytes32 indexed messageHash, string uqname);
-    event BidPlaced(bytes32 indexed messageHash, address indexed who, uint256 amount);
-    event SecretRevealed(bytes32 indexed messageHash, address indexed who, bytes uqname, string secret);
+    event NewSecret(bytes32 indexed messageHash, string message, bytes uqname);
+    event BidPlaced(bytes32 indexed messageHash, address indexed bidder, uint256 amount, bytes uqname);
+    event SecretRevealed(bytes32 indexed messageHash, address indexed who, string secret, bytes uqname);
 
     QNSRegistry public qns;
     WETH public weth;
@@ -30,25 +30,29 @@ contract Secrets {
         weth = _weth;
     }
 
-    function commitSecret(string calldata message, bytes calldata _signature) public {
+    function commitSecret(string calldata message, bytes calldata _signature, bytes calldata uqname) public {
         bytes32 messageHash = keccak256(abi.encodePacked(message));
         Bid storage bid = bids[messageHash];
         require(bid.signature.length == 0, "Secrets: Already posted");
+        if (uqname.length > 0) {
+            require(msg.sender == qns.resolve(uqname), "Secrets: Not uqname owner");
+        }
+
         bid.signature = _signature;
-        emit NewSecret(messageHash, message);
+        emit NewSecret(messageHash, message, uqname);
     }
 
-    function placeBid(uint256 amount, bytes32 messageHash, bytes calldata uqname) public {
+    function placeBid(bytes32 messageHash, uint256 amount, bytes calldata uqname) public {
         Bid storage bid = bids[messageHash];
         require(bid.signature.length >= 0, "Secrets: Secret doesn't exist");
         require(bid.amount < amount, "Secrets: Bid too low");
         require(weth.allowance(msg.sender, address(this)) >= amount, "Secrets: Insufficient allowance");
         require(weth.balanceOf(msg.sender) >= amount, "Secrets: Insufficient balance");
-        require(qns.resolve(uqname) == msg.sender, "Secrets: Not owner"); // shoe-horned in here, don't need this
+        require(qns.resolve(uqname) == msg.sender, "Secrets: Not owner");
         bid.amount = amount;
         bid.bidder = msg.sender;
 
-        emit BidPlaced(messageHash, msg.sender, amount);
+        emit BidPlaced(messageHash, msg.sender, amount, uqname);
     }
 
     // NOTE: you can NEVER recover the money if
@@ -64,6 +68,6 @@ contract Secrets {
 
         assert(weth.transferFrom(bid.bidder, signer, bids[messageHash].amount));
 
-        emit SecretRevealed(messageHash, signer, uqname, secret);
+        emit SecretRevealed(messageHash, signer, secret, uqname);
     }
 }
