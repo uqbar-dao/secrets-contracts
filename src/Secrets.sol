@@ -18,8 +18,8 @@ contract Secrets {
     }
 
     event NewSecret(bytes32 indexed messageHash, string message, bytes uqname);
-    event BidPlaced(bytes32 indexed messageHash, address indexed bidder, uint256 amount, bytes uqname);
-    event SecretRevealed(bytes32 indexed messageHash, address indexed who, string secret, bytes uqname);
+    event BidPlaced(bytes32 indexed messageHash, uint256 amount, bytes uqname);
+    event SecretRevealed(bytes32 indexed messageHash, string secret, bytes uqname);
 
     QNSRegistry public qns;
     WETH public weth;
@@ -52,7 +52,7 @@ contract Secrets {
         bid.amount = amount;
         bid.bidder = msg.sender;
 
-        emit BidPlaced(messageHash, msg.sender, amount, uqname);
+        emit BidPlaced(messageHash, amount, uqname);
     }
 
     // NOTE: you can NEVER recover the money if
@@ -62,12 +62,12 @@ contract Secrets {
         bytes32 messageHash = keccak256(abi.encodePacked(message));
         Bid storage bid = bids[messageHash]; 
         
-        bytes32 commitHash = keccak256(abi.encodePacked(message, secret));
+        bytes32 commitHash = ECDSA.toEthSignedMessageHash(abi.encodePacked(message, secret));
         address signer = commitHash.recover(bid.signature);
         require(signer == qns.resolve(uqname), "Secrets: Not signed by owner");
 
         assert(weth.transferFrom(bid.bidder, signer, bids[messageHash].amount));
 
-        emit SecretRevealed(messageHash, signer, secret, uqname);
+        emit SecretRevealed(messageHash, secret, uqname);
     }
 }

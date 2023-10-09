@@ -7,6 +7,7 @@ import { WETH } from "solmate/tokens/WETH.sol";
 import { QNSRegistry } from "qns/src/QNSRegistry.sol";
 import { UqNFT } from "qns/src/UqNFT.sol";
 import { Secrets } from "../src/Secrets.sol";
+import "openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
 
 import "forge-std/console.sol";
 import { TestUtils } from "./Utils.sol";
@@ -21,8 +22,8 @@ contract QNSTest is TestUtils {
 
     // events
     event NewSecret(bytes32 indexed messageHash, string message, bytes uqname);
-    event BidPlaced(bytes32 indexed messageHash, address indexed who, uint256 amount, bytes uqname);
-    event SecretRevealed(bytes32 indexed messageHash, address indexed who, string secret, bytes uqname);
+    event BidPlaced(bytes32 indexed messageHash, uint256 amount, bytes uqname);
+    event SecretRevealed(bytes32 indexed messageHash, string secret, bytes uqname);
 
     // addresses
     address public deployer = address(2);
@@ -116,7 +117,7 @@ contract QNSTest is TestUtils {
         string memory message = "a message";
         string memory secret = "a secret";
         bytes32 messageHash = keccak256(abi.encodePacked(message));
-        bytes32 commitHash = keccak256(abi.encodePacked(message, secret));
+        bytes32 commitHash = ECDSA.toEthSignedMessageHash(abi.encodePacked(message, secret));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(bob_key, commitHash);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -136,8 +137,8 @@ contract QNSTest is TestUtils {
         weth.approve(address(secrets), 100 ether);
 
         vm.prank(alice);
-        vm.expectEmit(true, true, false, true);
-        emit BidPlaced(messageHash, alice, 5 ether, getDNSWire("alices-node.uq"));
+        vm.expectEmit(true, false, false, true);
+        emit BidPlaced(messageHash, 5 ether, getDNSWire("alices-node.uq"));
         secrets.placeBid(messageHash, 5 ether, getDNSWire("alices-node.uq"));
     
         (uint256 amount2, address bidder2, bytes memory actualSig2) = secrets.bids(messageHash);
@@ -149,8 +150,8 @@ contract QNSTest is TestUtils {
         vm.prank(bob);
         uint256 beforeAlice = weth.balanceOf(alice);
         uint256 beforeBob = weth.balanceOf(bob);
-        vm.expectEmit(true, true, false, true);
-        emit SecretRevealed(messageHash, bob, secret, getDNSWire("bobs-node.uq"));
+        vm.expectEmit(true, false, false, true);
+        emit SecretRevealed(messageHash, secret, getDNSWire("bobs-node.uq"));
         secrets.revealSecret(message, secret, getDNSWire("bobs-node.uq"));
         uint256 afterAlice = weth.balanceOf(alice);
         uint256 afterBob = weth.balanceOf(bob);
@@ -163,7 +164,7 @@ contract QNSTest is TestUtils {
         string memory message = "a message";
         string memory secret = "a secret";
         bytes32 messageHash = keccak256(abi.encodePacked(message));
-        bytes32 commitHash = keccak256(abi.encodePacked(message, secret));
+        bytes32 commitHash = ECDSA.toEthSignedMessageHash(abi.encodePacked(message, secret));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(bob_key, commitHash);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -183,8 +184,8 @@ contract QNSTest is TestUtils {
         weth.approve(address(secrets), 100 ether);
 
         vm.prank(alice);
-        vm.expectEmit(true, true, false, true);
-        emit BidPlaced(messageHash, alice, 5 ether, getDNSWire("alices-node.uq"));
+        vm.expectEmit(true, false, false, true);
+        emit BidPlaced(messageHash, 5 ether, getDNSWire("alices-node.uq"));
         secrets.placeBid(messageHash, 5 ether, getDNSWire("alices-node.uq"));
     
         (uint256 amount2, address bidder2, bytes memory actualSig2) = secrets.bids(messageHash);
@@ -196,8 +197,8 @@ contract QNSTest is TestUtils {
         vm.prank(bob);
         uint256 beforeAlice = weth.balanceOf(alice);
         uint256 beforeBob = weth.balanceOf(bob);
-        vm.expectEmit(true, true, false, true);
-        emit SecretRevealed(messageHash, bob, secret, getDNSWire("bobs-node.uq"));
+        vm.expectEmit(true, false, false, true);
+        emit SecretRevealed(messageHash, secret, getDNSWire("bobs-node.uq"));
         secrets.revealSecret(message, secret, getDNSWire("bobs-node.uq"));
         uint256 afterAlice = weth.balanceOf(alice);
         uint256 afterBob = weth.balanceOf(bob);
